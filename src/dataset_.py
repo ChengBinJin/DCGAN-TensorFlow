@@ -86,8 +86,15 @@ class CelebA(object):
         self.num_trains = len(self.train_data)
         print('Load {} dataset SUCCESS!'.format(self.dataset_name))
 
-    def train_next_batch(self):
-        print('train_next_batch hello wolrd! {}'.format(self.dataset_name))
+    def train_next_batch(self, batch_size):
+        batch_path = self.train_data[np.random.choice(self.num_trains, batch_size, replace=False)]
+        return batch_imgs
+
+    def get_image(image_path, input_height, input_width, resize_height=64, resize_width=64, crop=True,
+                  grayscale=False):
+        image = imread(image_path, grayscale)
+
+        return transform(image, input_height, input_width, resize_height, resize_width, crop)
 
 
 # noinspection PyPep8Naming

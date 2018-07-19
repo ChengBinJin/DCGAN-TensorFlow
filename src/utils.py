@@ -7,6 +7,7 @@
 import os
 import sys
 import random
+import scipy.misc
 import numpy as np
 from PIL import Image
 
@@ -32,6 +33,53 @@ class ImagePool(object):
                 return tmp_img
             else:
                 return img
+
+
+def imread(path, is_gray_scale=False, img_size=None):
+    if is_gray_scale:
+        img = scipy.misc.imread(path, flatten=True).astype(np.float)
+    else:
+        img = scipy.misc.imread(path, mode='RGB').astype(np.float)
+
+        if not (img.ndim == 3 and img.shape[2] == 3):
+            img = np.dstack((img, img, img))
+
+    if img_size is not None:
+        img = scipy.misc.imresize(img, img_size)
+
+    return img
+
+
+def load_image(image_path, which_direction=0, is_gray_scale=True):
+    input_img = imread(image_path, is_gray_scale=is_gray_scale)
+    w_pair = int(input_img.shape[1])
+    w_single = int(w_pair / 2)
+
+    if which_direction == 0:    # ct to mr
+        img_a = input_img[:, 0:w_single]
+        img_b = input_img[:, w_single:w_pair]
+    else:                       # mr to ct
+        img_a = input_img[:, w_single:w_pair]
+        img_b = input_img[:, 0:w_single]
+
+    return img_a, img_b
+
+
+def load_data(image_path, flip=True, is_test=False, which_direction=0, is_gray_scale=True):
+    img_a, img_b = load_image(image_path=image_path, which_direction=which_direction,
+                              is_gray_scale=is_gray_scale)
+
+    img_a, img_b = preprocess_pair(img_a, img_b, flip=flip, is_test=is_test)
+    img_a = transform(img_a)
+    img_b = transform(img_b)
+
+    if (img_a.ndim == 2) and (img_b.ndim == 2):
+        # img_a = np.reshape(img_a, (img_a.shape[0], img_a.shape[1], 1))
+        # img_b = np.reshape(img_b, (img_b.shape[0], img_b.shape[1], 1))
+        img_a = np.expand_dims(img_a, axis=2)
+        img_b = np.expand_dims(img_b, axis=2)
+
+    return img_a, img_b
 
 
 def all_files_under(path, extension=None, append_path=True, sort=True):
