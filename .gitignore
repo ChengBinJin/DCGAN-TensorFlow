@@ -1,2 +1,6 @@
 .idea
 src/idea
+src/mnist
+src/cifar10
+src/celebA
+src/__pycache__

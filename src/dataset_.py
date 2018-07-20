@@ -6,44 +6,64 @@
 # ---------------------------------------------------------
 import os
 import numpy as np
-from tensorflow.examples.tutorials.mnist import input_data
+import scipy.misc
+import tensorflow as tf
 
 import utils as utils
 
 
 class MnistDataset(object):
-    def __init__(self, dataset_name):
+    def __init__(self, sess, flags, dataset_name):
+        self.sess = sess
+        self.flags = flags
         self.dataset_name = dataset_name
-        self.image_size = (28, 28, 1)
-        self.num_trains = 0
+        self.image_size = (32, 32, 1)
+        self.img_buffle = 100000  # image buffer for image shuflling
+        self.num_trains, self.num_tests = 0, 0
 
         self.mnist_path = os.path.join('../../Data', self.dataset_name)
         self._load_mnist()
 
     def _load_mnist(self):
         print('Load {} dataset...'.format(self.dataset_name))
-        self.train_data = input_data.read_data_sets(self.mnist_path, one_hot=True)
-        self.num_trains = self.train_data.train.num_examples
+        self.train_data, self.test_data = tf.keras.datasets.mnist.load_data()
+        # self.train_data is tuple: (image, label)
+        self.num_trains = self.train_data[0].shape[0]
+        self.num_tests = self.test_data[0].shape[0]
+
+        # TensorFlow Dataset API
+        train_x, train_y = self.train_data
+        dataset = tf.data.Dataset.from_tensor_slices(({'image': train_x}, train_y))
+        dataset = dataset.shuffle(self.img_buffle).repeat().batch(self.flags.batch_size)
+
+        iterator = dataset.make_one_shot_iterator()
+        self.next_batch = iterator.get_next()
 
         print('Load {} dataset SUCCESS!'.format(self.dataset_name))
 
     def train_next_batch(self, batch_size):
-        batch_imgs, _ = self.train_data.train.next_batch(batch_size)
+        batch_data = self.sess.run(self.next_batch)
+        batch_imgs = batch_data[0]["image"]
+        # batch_labels = batch_data[1]
 
-        # reshape 784 vector to 28 x 28 x 1
-        batch_imgs = np.reshape(batch_imgs, [batch_size, *self.image_size])
-        # imgs = [np.reshape(batch_imgs[idx], self.image_size) for idx in range(batch_imgs.shape[0])]
-        # resize to 32 x 32
-        # resize_imgs = [cv2.resize(imgs[idx], (32, 32)) for idx in range(len(imgs))]
-        # reshape 32 x 32 to 32 x 32 x 1
-        # reshape_imgs = [np.reshape(batch_imgs[idx], self.image_size) for idx in range(len(resize_imgs))]
-        # list to array
-        # arr_imgs = np.asarray(reshape_imgs).astype(np.float32)  # list to array
-        return batch_imgs
+        if self.flags.batch_size > batch_size:
+            # reshape 784 vector to 28 x 28 x 1
+            batch_imgs = np.reshape(batch_imgs[:batch_size], [batch_size, 28, 28])
+        else:
+            batch_imgs = np.reshape(batch_imgs, [self.flags.batch_size, 28, 28])
+
+        imgs_32 = [scipy.misc.imresize(batch_imgs[idx], self.image_size[0:2])
+                   for idx in range(batch_imgs.shape[0])]
+        imgs_array = np.expand_dims(np.asarray(imgs_32).astype(np.float32), axis=3)
+
+        print('imgs shape: {}'.format(imgs_array.shape))
+
+        return imgs_array * 2. - 1.
 
 
 class Cifar10(object):
-    def __init__(self, dataset_name):
+    def __init__(self, flags, dataset_name):
+        self.flags = flags
         self.dataset_name = dataset_name
         self.image_size = (32, 32, 3)
         self.num_trains = 0
@@ -67,13 +87,15 @@ class Cifar10(object):
 
     def train_next_batch(self, batch_size):
         batch_imgs = self.train_data[np.random.choice(self.num_trains, batch_size, replace=False)]
-        return batch_imgs
+        return batch_imgs * 2. - 1.  # from [0., 1.] to [-1., 1.]
 
 
 class CelebA(object):
-    def __init__(self, dataset_name):
+    def __init__(self, flags, dataset_name):
+        self.flags = flags
         self.dataset_name = dataset_name
         self.image_size = (64, 64, 3)
+        self.input_height = self.input_width = 108
         self.num_trains = 0
 
         self.celeba_path = os.path.join('../../Data', self.dataset_name, 'train')
@@ -87,24 +109,20 @@ class CelebA(object):
         print('Load {} dataset SUCCESS!'.format(self.dataset_name))
 
     def train_next_batch(self, batch_size):
-        batch_path = self.train_data[np.random.choice(self.num_trains, batch_size, replace=False)]
-        return batch_imgs
-
-    def get_image(image_path, input_height, input_width, resize_height=64, resize_width=64, crop=True,
-                  grayscale=False):
-        image = imread(image_path, grayscale)
-
-        return transform(image, input_height, input_width, resize_height, resize_width, crop)
+        batch_paths = np.random.choice(self.train_data, batch_size, replace=False)
+        batch_imgs = [utils.load_data(batch_path, input_height=self.input_height, input_width=self.input_width)
+                      for batch_path in batch_paths]
+        return np.asarray(batch_imgs)
 
 
 # noinspection PyPep8Naming
-def Dataset(dataset_name):
+def Dataset(sess, flags, dataset_name):
     if dataset_name == 'mnist':
-        return MnistDataset(dataset_name)
+        return MnistDataset(sess, flags, dataset_name)
     elif dataset_name == 'cifar10':
-        return Cifar10(dataset_name)
+        return Cifar10(flags, dataset_name)
     elif dataset_name == 'celebA':
-        return CelebA(dataset_name)
+        return CelebA(flags, dataset_name)
     else:
         raise NotImplementedError
 

@@ -35,6 +35,18 @@ class ImagePool(object):
                 return img
 
 
+def center_crop(img, crop_h, crop_w, resize_h=64, resize_w=64):
+    if crop_w is None:
+        crop_w = crop_h
+
+    h, w = img.shape[:2]
+    h_start = int(round((h - crop_h) / 2.))
+    w_start = int(round((w - crop_w) / 2.))
+    # resize image
+    img_crop = scipy.misc.imresize(img[h_start:h_start+crop_h, w_start:w_start+crop_w], [resize_h, resize_w])
+    return img_crop
+
+
 def imread(path, is_gray_scale=False, img_size=None):
     if is_gray_scale:
         img = scipy.misc.imread(path, flatten=True).astype(np.float)
@@ -50,36 +62,20 @@ def imread(path, is_gray_scale=False, img_size=None):
     return img
 
 
-def load_image(image_path, which_direction=0, is_gray_scale=True):
-    input_img = imread(image_path, is_gray_scale=is_gray_scale)
-    w_pair = int(input_img.shape[1])
-    w_single = int(w_pair / 2)
+def load_data(image_path, input_height, input_width, resize_height=64, resize_width=64, crop=True, is_gray_scale=False):
+    img = imread(path=image_path, is_gray_scale=is_gray_scale)
 
-    if which_direction == 0:    # ct to mr
-        img_a = input_img[:, 0:w_single]
-        img_b = input_img[:, w_single:w_pair]
-    else:                       # mr to ct
-        img_a = input_img[:, w_single:w_pair]
-        img_b = input_img[:, 0:w_single]
+    if crop:
+        cropped_img = center_crop(img, input_height, input_width, resize_height, resize_width)
+    else:
+        cropped_img = scipy.misc.imresize(img, [resize_height, resize_width])
 
-    return img_a, img_b
+    img_trans = transform(cropped_img)  # from [0, 255] to [-1., 1.]
 
+    if is_gray_scale and (img_trans.ndim == 2):
+        img_trans = np.expand_dims(img_trans, axis=2)
 
-def load_data(image_path, flip=True, is_test=False, which_direction=0, is_gray_scale=True):
-    img_a, img_b = load_image(image_path=image_path, which_direction=which_direction,
-                              is_gray_scale=is_gray_scale)
-
-    img_a, img_b = preprocess_pair(img_a, img_b, flip=flip, is_test=is_test)
-    img_a = transform(img_a)
-    img_b = transform(img_b)
-
-    if (img_a.ndim == 2) and (img_b.ndim == 2):
-        # img_a = np.reshape(img_a, (img_a.shape[0], img_a.shape[1], 1))
-        # img_b = np.reshape(img_b, (img_b.shape[0], img_b.shape[1], 1))
-        img_a = np.expand_dims(img_a, axis=2)
-        img_b = np.expand_dims(img_b, axis=2)
-
-    return img_a, img_b
+    return img_trans
 
 
 def all_files_under(path, extension=None, append_path=True, sort=True):
@@ -139,6 +135,4 @@ def transform(img):
 
 def inverse_transform(img):
     return (img + 1.) / 2.
-
-
 
