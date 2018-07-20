@@ -89,6 +89,7 @@ class DCGAN(object):
             # 32 x 32
             if (self.flags.dataset == 'mnist') or (self.flags.dataset == 'cifar10'):
                 output = tf_utils.deconv2d(h2_relu, self.image_size[2], name='h3_deconv2d')
+                return tf.nn.tanh(output)
             else:
                 h3_deconv = tf_utils.deconv2d(h2_relu, self.gen_c[3], name='h3_deconv2d')
                 h3_batchnorm = tf_utils.batch_norm(h3_deconv, name='h3_batchnorm', _ops=self._gen_train_ops)
@@ -96,8 +97,7 @@ class DCGAN(object):
 
                 # 64 x 64
                 output = tf_utils.deconv2d(h3_relu, self.image_size[2], name='h4_deconv2d')
-
-            return tf.nn.tanh(output)
+                return tf.nn.tanh(output)
 
     def discriminator(self, data, name='d_', is_reuse=False):
         with tf.variable_scope(name) as scope:

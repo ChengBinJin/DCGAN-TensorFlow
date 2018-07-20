@@ -58,7 +58,7 @@ class MnistDataset(object):
 
         print('imgs shape: {}'.format(imgs_array.shape))
 
-        return imgs_array * 2. - 1.
+        return imgs_array / 127.5 - 1.  # from [0., 255.] to [-1., 1.]
 
 
 class Cifar10(object):
