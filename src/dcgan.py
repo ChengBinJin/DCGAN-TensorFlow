@@ -3,13 +3,14 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.layers import flatten
 import matplotlib as mpl
-mpl.use('TkAgg')  # or whatever other backend that you want to solve Segmentation fault (core dumped)
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 # noinspection PyPep8Naming
 import tensorflow_utils as tf_utils
 import utils as utils
+
+mpl.use('TkAgg')  # or whatever other backend that you want to solve Segmentation fault (core dumped)
 
 
 class DCGAN(object):
@@ -19,12 +20,11 @@ class DCGAN(object):
         self.image_size = image_size
 
         self._gen_train_ops, self._dis_train_ops = [], []
-        self.gen_c = [1024, 512, 256, 128, 64, 64, self.image_size[2]]
-        self.dis_c = [64, 128, 256, 512, 512, 512, 1]
-        # self.out_fun = tf.nn.sigmoid if self.flags.dataset == 'mnist' else tf.nn.tanh
+        self.gen_c = [1024, 512, 256, 128]  # 4, 8, 16, 32
+        self.dis_c = [64, 128, 256, 512]  # 32, 16, 8, 4
 
-        # self._build_net()
-        # self._tensorboard()
+        self._build_net()
+        self._tensorboard()
         print("Initialized DCGAN SUCCESS!")
 
     def _build_net(self):
@@ -87,66 +87,55 @@ class DCGAN(object):
             h2_relu = tf.nn.relu(h2_batchnorm, name='h2_relu')
 
             # 32 x 32
-            h3_deconv = tf_utils.deconv2d(h2_relu, self.gen_c[3], name='h3_deconv2d')
-            h3_batchnorm = tf_utils.batch_norm(h3_deconv, name='h3_batchnorm', _ops=self._gen_train_ops)
-            h3_relu = tf.nn.relu(h3_batchnorm, name='h3_relu')
+            if (self.flags.dataset == 'mnist') or (self.flags.dataset == 'cifar10'):
+                output = tf_utils.deconv2d(h2_relu, self.image_size[2], name='h3_deconv2d')
+            else:
+                h3_deconv = tf_utils.deconv2d(h2_relu, self.gen_c[3], name='h3_deconv2d')
+                h3_batchnorm = tf_utils.batch_norm(h3_deconv, name='h3_batchnorm', _ops=self._gen_train_ops)
+                h3_relu = tf.nn.relu(h3_batchnorm, name='h3_relu')
 
-            # 64 x 64
-            h4_deconv = tf_utils.deconv2d(h3_relu, self.gen_c[4], name='h4_deconv2d')
-            h4_batchnorm = tf_utils.batch_norm(h4_deconv, name='h4_batchnorm', _ops=self._gen_train_ops)
-            h4_relu = tf.nn.relu(h4_batchnorm, name='h4_relu')
+                # 64 x 64
+                output = tf_utils.deconv2d(h3_relu, self.image_size[2], name='h4_deconv2d')
 
-            # 128 x 128
-            h5_deconv = tf_utils.deconv2d(h4_relu, self.gen_c[5], name='h5_deconv2d')
-            h5_batchnorm = tf_utils.batch_norm(h5_deconv, name='h5_batchnorm', _ops=self._gen_train_ops)
-            h5_relu = tf.nn.relu(h5_batchnorm, name='h5_relu')
-
-            # 256 x 256
-            h6_deconv = tf_utils.deconv2d(h5_relu, self.gen_c[6], name='h6_deconv2d')
-
-            return tf.nn.tanh(h6_deconv)
+            return tf.nn.tanh(output)
 
     def discriminator(self, data, name='d_', is_reuse=False):
         with tf.variable_scope(name) as scope:
             if is_reuse is True:
                 scope.reuse_variables()
 
-            # 256 -> 128
+            # 64 -> 32 or 32 -> 16
             h0_conv = tf_utils.conv2d(data, self.dis_c[0], name='h0_conv2d')
             h0_lrelu = tf_utils.lrelu(h0_conv, name='h0_lrelu')
 
-            # 128 -> 64
+            # 32 -> 16 or 16 -> 8
             h1_conv = tf_utils.conv2d(h0_lrelu, self.dis_c[1], name='h1_conv2d')
             h1_batchnorm = tf_utils.batch_norm(h1_conv, name='h1_batchnorm', _ops=self._dis_train_ops)
             h1_lrelu = tf_utils.lrelu(h1_batchnorm, name='h1_lrelu')
 
-            # 64 -> 32
+            # 16 -> 8 or 8 -> 4
             h2_conv = tf_utils.conv2d(h1_lrelu, self.dis_c[2], name='h2_conv2d')
             h2_batchnorm = tf_utils.batch_norm(h2_conv, name='h2_batchnorm', _ops=self._dis_train_ops)
             h2_lrelu = tf_utils.lrelu(h2_batchnorm, name='h2_lrelu')
 
-            # 32 -> 16
-            h3_conv = tf_utils.conv2d(h2_lrelu, self.dis_c[3], name='h3_conv2d')
-            h3_batchnorm = tf_utils.batch_norm(h3_conv, name='h3_batchnorm', _ops=self._dis_train_ops)
-            h3_lrelu = tf_utils.lrelu(h3_batchnorm, name='h3_lrelu')
+            if (self.flags.dataset == 'mnist') or (self.flags.dataset == 'cifar10'):
+                h2_flatten = flatten(h2_lrelu)
+                h3_linear = tf_utils.linear(h2_flatten, 1, name='h3_linear')
 
-            # 16 -> 8
-            h4_conv = tf_utils.conv2d(h3_lrelu, self.dis_c[4], name='h4_conv2d')
-            h4_batchnorm = tf_utils.batch_norm(h4_conv, name='h4_batchnorm', _ops=self._dis_train_ops)
-            h4_lrelu = tf_utils.lrelu(h4_batchnorm, name='h4_lrelu')
+                return tf.nn.sigmoid(h3_linear), h3_linear
+            else:
+                # 8 -> 4
+                h3_conv = tf_utils.conv2d(h2_lrelu, self.dis_c[3], name='h3_conv2d')
+                h3_batchnorm = tf_utils.batch_norm(h3_conv, name='h3_batchnorm', _ops=self._dis_train_ops)
+                h3_lrelu = tf_utils.lrelu(h3_batchnorm, name='h3_lrelu')
 
-            # 8 -> 4
-            h5_conv = tf_utils.conv2d(h4_lrelu, self.dis_c[5], name='h5_conv2d')
-            h5_batchnorm = tf_utils.batch_norm(h5_conv, name='h5_batchnorm', _ops=self._dis_train_ops)
-            h5_lrelu = tf_utils.lrelu(h5_batchnorm, name='h5_lrelu')
+                h3_flatten = flatten(h3_lrelu)
+                h4_linear = tf_utils.linear(h3_flatten, 1, name='h4_linear')
 
-            h5_flatten = flatten(h5_lrelu)
-            h6_linear = tf_utils.linear(h5_flatten, self.dis_c[6], name='h6_linear')
+                return tf.nn.sigmoid(h4_linear), h4_linear
 
-            return tf.nn.sigmoid(h6_linear), h6_linear
-
-    def train_step(self, x_data, y_data):
-        feed = {self.z: self.sample_z(num=self.flags.batch_size), self.Y: y_data}
+    def train_step(self, imgs):
+        feed = {self.z: self.sample_z(num=self.flags.batch_size), self.Y: imgs}
 
         _, d_loss = self.sess.run([self.dis_optim, self.d_loss], feed_dict=feed)
         _, g_loss = self.sess.run([self.gen_optim, self.g_loss], feed_dict=feed)
@@ -156,15 +145,13 @@ class DCGAN(object):
 
         return [d_loss, g_loss], summary
 
-    def test_step(self, x_data, y_data):
-        return self.sample_imgs(x_data, y_data)
+    def sample_imgs(self):
+        g_feed = {self.z: self.sample_z(num=self.flags.sample_batch)}
+        y_fakes = self.sess.run(self.g_samples, feed_dict=g_feed)
 
-    def sample_imgs(self, x_data, y_data):
-        g_feed = {self.z: self.sample_z(num=x_data.shape[0])}
+        return [y_fakes]
 
-        return [x_data, self.sess.run(self.g_samples, feed_dict=g_feed), y_data]
-
-    def sample_z(self, num):
+    def sample_z(self, num=64):
         return np.random.uniform(-1., 1., size=[num, self.flags.z_dim])
 
     def print_info(self, loss, iter_time):
