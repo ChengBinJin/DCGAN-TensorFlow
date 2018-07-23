@@ -3,14 +3,13 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.contrib.layers import flatten
 import matplotlib as mpl
+mpl.use('TkAgg')  # or whatever other backend that you want to solve Segmentation fault (core dumped)
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 # noinspection PyPep8Naming
 import tensorflow_utils as tf_utils
 import utils as utils
-
-mpl.use('TkAgg')  # or whatever other backend that you want to solve Segmentation fault (core dumped)
 
 
 class DCGAN(object):
