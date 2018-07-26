@@ -82,7 +82,7 @@ python main.py --is_train=true
  - `gpu_index`: gpu index, default: `0`
  - `batch_size`: batch size for one feed forward, default: `256`
  - `dataset`: dataset name for choice [mnist|cifar10|celebA], default: `mnist`
- - `is_train`: 'training or inference mode, default: `False`
+ - `is_train`: training or inference mode, default: `False`
  - `learning_rate`: initial learning rate, default: `0.0002`
  - `beta1`: momentum term of Adam, default: `0.5`
  - `z_dim`: dimension of z vector, default: `100`
